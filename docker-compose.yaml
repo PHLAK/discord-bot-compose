@@ -1,0 +1,95 @@
+services:
+
+  app:
+    image: phlak/discord-bot:${IMAGE_VERSION:-latest}
+    env_file: environment.d/discord-bot.env
+    environment: &app-environment
+      APP_KEY: ${APP_KEY}
+      DB_CONNECTION: ${DB_CONNECTION:-mysql}
+      DB_HOST: ${DB_HOST:-mysql}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_DATABASE: ${DB_DATABASE:-app}
+      DB_USERNAME: ${DB_USERNAME:-discord-bot}
+      DB_PASSWORD: ${DB_PASSWORD}
+      CACHE_STORE: ${CACHE_STORE:-redis}
+      QUEUE_CONNECTION: ${QUEUE_CONNECTION:-redis}
+      SESSION_DRIVER: ${SESSION_DRIVER:-redis}
+      REDIS_HOST: ${REDIS_HOST:-cache}
+      LOG_CHANNEL: stderr
+    ports:
+      - ${APP_PORT:-8080}:80
+    volumes:
+      - ${STORAGE_VOLUME:-app-storage}:/var/www/html/storage
+      - /etc/localtime:/etc/localtime:ro
+    depends_on: [mysql, cache]
+    restart: unless-stopped
+
+  cache:
+    image: valkey/valkey:${VALKEY_VERSION:-9}
+    volumes:
+      - ${CACHE_VOLUME:-valkey-data}:/data
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:${MYSQL_VERSION:-8.4}
+    env_file: environment.d/mysql.env
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: true
+      MYSQL_DATABASE: ${DB_DATABASE:-app}
+      MYSQL_USER: ${DB_USERNAME:-discord-bot}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ${MYSQL_VOLUME:-mysql-data}:/var/lib/mysql
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+
+  horizon:
+    image: phlak/discord-bot:${IMAGE_VERSION:-latest}
+    env_file: environment.d/discord-bot.env
+    environment: *app-environment
+    command: php artisan horizon
+    volumes:
+      - ${STORAGE_VOLUME:-app-storage}:/var/www/html/storage
+      - /etc/localtime:/etc/localtime:ro
+    depends_on: [mysql, cache]
+    restart: unless-stopped
+
+  scheduler:
+    image: phlak/discord-bot:${IMAGE_VERSION:-latest}
+    env_file: environment.d/discord-bot.env
+    environment: *app-environment
+    command: php artisan schedule:work
+    volumes:
+      - ${STORAGE_VOLUME:-app-storage}:/var/www/html/storage
+      - /etc/localtime:/etc/localtime:ro
+    depends_on: [mysql, cache]
+    restart: unless-stopped
+
+  artisan:
+    image: phlak/discord-bot:${IMAGE_VERSION:-latest}
+    env_file: environment.d/discord-bot.env
+    environment: *app-environment
+    entrypoint: php artisan
+    profiles: [artisan]
+    volumes:
+      - ${STORAGE_VOLUME:-app-storage}:/var/www/html/storage
+      - /etc/localtime:/etc/localtime:ro
+    depends_on: [mysql, cache]
+
+  watchtower:
+    image: nickfedor/watchtower:${WATCHTOWER_VERSION:-latest}
+    env_file: environment.d/watchtower.env
+    environment:
+      WATCHTOWER_SCOPE: ${COMPOSE_PROJECT_NAME}
+    volumes:
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+      - /etc/localtime:/etc/localtime:ro
+    labels:
+      com.centurylinklabs.watchtower.scope: ${COMPOSE_PROJECT_NAME}
+    restart: unless-stopped
+
+volumes:
+  app-storage: {}
+  valkey-data: {}
+  mysql-data: {}
