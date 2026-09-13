@@ -44,6 +44,17 @@ services:
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
 
+  pulse:
+    image: phlak/discord-bot:${IMAGE_VERSION:-latest}
+    env_file: environment.d/discord-bot.env
+    environment: *app-environment
+    command: php artisan pulse:check
+    volumes:
+      - ${STORAGE_VOLUME:-app-storage}:/var/www/html/storage
+      - /etc/localtime:/etc/localtime:ro
+    depends_on: [mysql, cache]
+    restart: unless-stopped
+
   horizon:
     image: phlak/discord-bot:${IMAGE_VERSION:-latest}
     env_file: environment.d/discord-bot.env
